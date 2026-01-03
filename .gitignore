@@ -1,0 +1,147 @@
+# ============================================================
+# Environment and Secrets
+# ============================================================
+.env
+.env.local
+.env.*.local
+*.env
+!.env.example
+
+# ============================================================
+# Python
+# ============================================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+*.manifest
+*.spec
+pip-log.txt
+pip-delete-this-directory.txt
+
+# ============================================================
+# Virtual Environment
+# ============================================================
+venv/
+ENV/
+env/
+.venv
+
+# ============================================================
+# IDE and Editors
+# ============================================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ============================================================
+# Data Directories
+# ============================================================
+# Ignore actual data files but keep structure
+data/master_library/*.pdf
+data/master_library/*.docx
+data/master_library/*.doc
+data/processed/*
+data/queue/*
+data/debug/*
+data/local_dbs/*.db
+data/local_dbs/*.db-journal
+
+# Keep directory structure with .gitkeep files
+!data/master_library/.gitkeep
+!data/processed/.gitkeep
+!data/queue/.gitkeep
+!data/debug/.gitkeep
+!data/local_dbs/.gitkeep
+
+# ============================================================
+# Logs
+# ============================================================
+logs/*.log
+*.log
+# Keep logs directory structure
+!logs/.gitkeep
+
+# ============================================================
+# Database Dumps
+# ============================================================
+dump/
+*.dump
+
+# ============================================================
+# Redis
+# ============================================================
+dump.rdb
+
+# ============================================================
+# Jupyter Notebook
+# ============================================================
+.ipynb_checkpoints
+*.ipynb
+
+# ============================================================
+# Testing
+# ============================================================
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# ============================================================
+# Type Checking
+# ============================================================
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+.pytype/
+
+# ============================================================
+# ML Models Cache (optional)
+# ============================================================
+# Uncomment if you don't want to cache downloaded models
+# .cache/
+# models/
+
+# ============================================================
+# Temporary files
+# ============================================================
+*.tmp
+*.bak
+*.swp
+*~
+.temp/
+
+# ============================================================
+# Project Specific
+# ============================================================
+# Temporary scripts
+clear_mongodb.py
+
+# Personal notes (if you have them)
+PERSONAL_NOTES.md
+PROJECT_NOTES_FOR_RESUME.md
+TODO.md

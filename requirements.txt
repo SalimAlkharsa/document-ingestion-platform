@@ -1,0 +1,33 @@
+# Core document processing
+docling==2.25.0
+docling-core==2.21.1
+docling-ibm-models==3.4.1
+docling-parse==3.4.0
+
+# Machine Learning & NLP
+sentence-transformers==3.4.1
+transformers==4.49.0
+torch==2.6.0
+tokenizers==0.21.0
+huggingface-hub==0.29.1
+safetensors==0.5.3
+
+# Database & Storage
+pymongo==4.11.2
+redis==5.2.1
+
+# Environment & Configuration
+python-dotenv==1.0.1
+
+# Utilities
+numpy==2.2.1
+tqdm==4.67.1
+pillow==11.1.0
+
+# Web UI
+streamlit==1.41.1
+
+# Optional but recommended
+# For improved OCR capabilities
+# easyocr==1.7.2
+# opencv-python-headless==4.11.0.86
