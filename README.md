@@ -365,48 +365,7 @@ tail -f logs/manager.log
 - **[PyTorch](https://pytorch.org/)** (v2.6.0) - Deep learning framework
 - **[Transformers](https://huggingface.co/transformers/)** (v4.49.0) - Hugging Face transformers
 
-### Architecture
-
 ```
-
-┌─────────────────┐
-│ Master Library │ ← Input PDFs
-└────────┬────────┘
-│
-▼
-┌─────────────────┐
-│ Extraction │ → Docling PDF extraction
-│ Workers │
-└────────┬────────┘
-│
-▼
-┌─────────────────┐
-│ Redis Queue │ ← Task distribution
-└────────┬────────┘
-│
-▼
-┌─────────────────┐
-│ Chunking │ → Semantic segmentation
-│ Workers │
-└────────┬────────┘
-│
-▼
-┌─────────────────┐
-│ Embedding │ → Vector generation
-│ Workers │
-└────────┬────────┘
-│
-▼
-┌─────────────────┐
-│ MongoDB │ ← Vector storage + search
-└─────────────────┘
-│
-▼
-┌─────────────────┐
-│ Streamlit Demo │ → Semantic search UI
-└─────────────────┘
-
-````
 
 ## 🔧 Advanced Features
 
@@ -418,7 +377,7 @@ Edit [document_ingestion_platform/ingest_tools/chunking.py](document_ingestion_p
 # Adjust chunk size and overlap
 CHUNK_SIZE = 512  # tokens
 CHUNK_OVERLAP = 50  # tokens
-````
+```
 
 ### Custom Embedding Model
 
