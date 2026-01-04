@@ -116,7 +116,7 @@ document-ingestion-platform/
 ### Check Processing Status
 
 ```python
-from platform.db.db_handler import DocumentDBHandler
+from document_ingestion_platform.db.db_handler import DocumentDBHandler
 
 db = DocumentDBHandler()
 stats = db.get_stats()
@@ -136,7 +136,7 @@ redis-cli
 ### Query MongoDB
 
 ```python
-from platform.db.mongodb_helper import MongoDBHelper
+from document_ingestion_platform.db.mongodb_helper import MongoDBHelper
 
 mongo = MongoDBHelper()
 
