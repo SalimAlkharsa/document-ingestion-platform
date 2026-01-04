@@ -430,37 +430,11 @@ EMBEDDING_MODEL=sentence-transformers/paraphrase-multilingual-mpnet-base-v2
 # Or OpenAI-compatible models (requires API key)
 ```
 
-### MongoDB Vector Index
+### Model Download Issues
 
-For optimal search performance, create a vector search index in MongoDB Atlas:
+**Problem:** Error downloading model on first run
 
-```javascript
-{
-  "mappings": {
-    "dynamic": true,
-    "fields": {
-      "embedding": {
-        "type": "knnVector",
-        "dimensions": 768,  // Match your embedding model
-        "similarity": "cosine"
-      }
-    }
-  }
-}
-```
-
-Note: This step is not done in the repo
-
-### Parallel Processing Architecture
-
-The pipeline uses Redis queues for task distribution:
-
-1. **Manager Process**: Scans master library, queues documents
-2. **Extraction Workers**: Process PDFs in parallel
-3. **Chunking Workers**: Split documents into chunks
-4. **Embedding Workers**: Generate vectors in batches
-
-All coordinated via Redis with lock management to prevent duplicate processing.
+**Solution:** Ensure internet connection and disk space. Models are cached in `~/.cache/huggingface/`.
 
 ## 📝 License
 
