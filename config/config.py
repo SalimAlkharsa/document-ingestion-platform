@@ -28,9 +28,15 @@ DB_DIR = os.getenv("DB_DIR", str(BASE_DIR / "data" / "local_dbs"))
 DOCUMENTS_DB_PATH = os.getenv("DOCUMENTS_DB_PATH", str(BASE_DIR / "data" / "local_dbs" / "documents.db"))
 
 # Redis queues
+EXTRACTION_JOBS = os.getenv("EXTRACTION_JOBS", "extraction_jobs")
 EMBEDDING_QUEUE = os.getenv("EMBEDDING_QUEUE", "embedding_queue")
 REDIS_QUEUE = os.getenv("REDIS_QUEUE", "document_processing_queue")
-ALL_REDIS_QUEUES = [EMBEDDING_QUEUE, REDIS_QUEUE]
+ALL_REDIS_QUEUES = [EXTRACTION_JOBS, EMBEDDING_QUEUE, REDIS_QUEUE]
+
+# Dead letter queues for error handling
+EXTRACTION_DLQ = os.getenv("EXTRACTION_DLQ", "extraction_dlq")
+CHUNKING_DLQ = os.getenv("CHUNKING_DLQ", "chunking_dlq")
+EMBEDDING_DLQ = os.getenv("EMBEDDING_DLQ", "embedding_dlq")
 
 # Redis connection settings
 REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
@@ -61,6 +67,12 @@ TOKENIZER_MODEL = os.getenv("TOKENIZER_MODEL", "bert-base-uncased")
 # Logging settings
 LOG_DIR = os.getenv("LOG_DIR", str(BASE_DIR / "logs"))
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
+
+
+def generate_trace_id():
+    """Generate a unique trace ID for document processing"""
+    import uuid
+    return str(uuid.uuid4())
 
 
 def ensure_directories():
