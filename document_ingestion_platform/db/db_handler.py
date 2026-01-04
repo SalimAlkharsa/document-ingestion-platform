@@ -45,6 +45,7 @@ class DocumentDBHandler:
                 filename TEXT NOT NULL UNIQUE,
                 filepath TEXT NOT NULL,
                 status TEXT NOT NULL,
+                trace_id TEXT,
                 error_message TEXT,
                 processed_date TIMESTAMP,
                 created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -56,13 +57,13 @@ class DocumentDBHandler:
         except sqlite3.Error as e:
             logger.error(f"Table creation error: {e}")
     
-    def add_document(self, filename, filepath, status="pending"):
+    def add_document(self, filename, filepath, status="pending", trace_id=None):
         """Add a document to the tracking database"""
         try:
             cursor = self.conn.cursor()
             cursor.execute(
-                "INSERT OR IGNORE INTO documents (filename, filepath, status) VALUES (?, ?, ?)",
-                (filename, filepath, status)
+                "INSERT OR IGNORE INTO documents (filename, filepath, status, trace_id) VALUES (?, ?, ?, ?)",
+                (filename, filepath, status, trace_id)
             )
             self.conn.commit()
             return True

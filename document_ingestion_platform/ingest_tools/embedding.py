@@ -6,6 +6,8 @@ import time
 import logging
 import argparse
 import sys
+import signal
+import threading
 import numpy as np
 from pathlib import Path
 from dotenv import load_dotenv
@@ -15,23 +17,38 @@ from datetime import datetime
 # Add the parent directory to sys.path to import globals
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
-from globals import EMBEDDING_QUEUE, PROCESSED_DIR
+from globals import EMBEDDING_QUEUE, PROCESSED_DIR, EMBEDDING_DLQ
 
 # Import MongoDBHelper from the db module (relative to platform directory)
 sys.path.insert(0, str(project_root / 'platform'))
-from db.mongodb_helper import MongoDBHelper
+from document_ingestion_platform.db.mongodb_helper import MongoDBHelper
 
 # Load environment variables
 load_dotenv()
 
 # Initialize Redis client
-redis_client = redis.StrictRedis(host='localhost', port=6379, db=0)
+redis_client = redis.StrictRedis(host='localhost', port=6379, db=0, decode_responses=True)
 
 # Define the simulated vector store directory (keeping for backward compatibility)
 SIMULATED_VECTOR_STORE = os.path.join(PROCESSED_DIR, 'simulated_vector_store')
 
 # Initialize MongoDB helper
 mongo_helper = None
+
+# Shutdown event for graceful termination
+shutdown_event = threading.Event()
+worker_id = None  # Will be set from CLI args
+
+
+def shutdown_handler(signum, frame):
+    """Handle shutdown signals gracefully"""
+    logger.info(f"worker_id={worker_id} stage=embedding event=shutdown_requested")
+    shutdown_event.set()
+
+
+# Register signal handlers
+signal.signal(signal.SIGTERM, shutdown_handler)
+signal.signal(signal.SIGINT, shutdown_handler)
 
 def get_mongo_helper():
     """
@@ -49,13 +66,19 @@ class Embedder:
         """
         self.model = SentenceTransformer(model_name)
         self.model_name = model_name
-        logger.info(f"Initialized embedder with model: {model_name}")
+        logger.info(
+            f"worker_id={worker_id} stage=embedding event=embedder_initialized "
+            f"model={model_name}"
+        )
     
-    def embed_chunks(self, chunks, metadata=None):
+    def embed_chunks(self, chunks, metadata=None, trace_id=None):
         """
         Embed a list of text chunks and enrich with metadata fields.
         """
-        logger.debug(f"Embedding {len(chunks)} chunks with metadata")
+        logger.debug(
+            f"trace_id={trace_id} worker_id={worker_id} stage=embedding "
+            f"event=embedding_started chunk_count={len(chunks)}"
+        )
         
         # Extract texts from chunks based on their structure
         texts = []
@@ -107,9 +130,14 @@ class Embedder:
             
             enriched_chunks.append(enriched_chunk)
         
+        logger.debug(
+            f"trace_id={trace_id} worker_id={worker_id} stage=embedding "
+            f"event=embedding_completed chunk_count={len(enriched_chunks)}"
+        )
+        
         return enriched_chunks
 
-def load_chunks_file(chunks_file):
+def load_chunks_file(chunks_file, trace_id=None):
     """
     Load chunks and metadata from a JSON file.
     """
@@ -117,12 +145,18 @@ def load_chunks_file(chunks_file):
         with open(chunks_file, 'r') as f:
             data = json.load(f)
         
-        logger.debug(f"Loaded data keys from file: {list(data.keys())}")
+        logger.debug(
+            f"trace_id={trace_id} worker_id={worker_id} stage=embedding "
+            f"event=chunks_loaded file={chunks_file} keys={list(data.keys())}"
+        )
         
         if 'chunks' in data:
             chunks = data['chunks']
         else:
-            logger.warning(f"No 'chunks' key found in {chunks_file}, trying alternative keys")
+            logger.warning(
+                f"trace_id={trace_id} worker_id={worker_id} stage=embedding "
+                f"event=no_chunks_key file={chunks_file}"
+            )
             # Fallback to other possible keys
             for key in ["documents", "items", "texts"]:
                 if key in data:
@@ -141,10 +175,13 @@ def load_chunks_file(chunks_file):
         return chunks, metadata
     
     except Exception as e:
-        logger.error(f"Error loading chunks file {chunks_file}: {str(e)}")
+        logger.error(
+            f"trace_id={trace_id} worker_id={worker_id} stage=embedding "
+            f"event=load_error file={chunks_file} error={str(e)}"
+        )
         raise
 
-def save_to_mongodb(embedded_chunks, metadata):
+def save_to_mongodb(embedded_chunks, metadata, trace_id=None):
     """
     Save each embedded chunk as a separate document in MongoDB.
     """
@@ -160,6 +197,11 @@ def save_to_mongodb(embedded_chunks, metadata):
         metadata["document_id"] = doc_id
     else:
         doc_id = metadata["document_id"]
+    
+    logger.debug(
+        f"trace_id={trace_id} worker_id={worker_id} stage=embedding "
+        f"event=mongodb_save_started document_id={doc_id} chunk_count={len(embedded_chunks)}"
+    )
     
     # Store each embedded chunk as its own document in MongoDB
     result_ids = []
@@ -191,7 +233,10 @@ def save_to_mongodb(embedded_chunks, metadata):
         
         result_ids.append(result_id)
 
-    logger.info(f"Embeddings saved to MongoDB with document_id: {doc_id}, {len(embedded_chunks)} chunks")
+    logger.info(
+        f"trace_id={trace_id} worker_id={worker_id} stage=embedding "
+        f"event=mongodb_save_completed document_id={doc_id} chunk_count={len(embedded_chunks)}"
+    )
     
     return result_ids
 
@@ -257,66 +302,113 @@ def save_to_vector_store(embedded_chunks, metadata):
     
     return output_file
 
-def process_queue():
+def process_embedding_job(embedder, job_data):
     """
-    Process documents from the embedding queue.
+    Process an embedding job from the embedding queue.
+    """
+    trace_id = job_data.get('metadata', {}).get('trace_id', 'unknown')
+    chunks_file = job_data['chunks_file']
+    metadata = job_data['metadata']
+    
+    logger.info(
+        f"trace_id={trace_id} worker_id={worker_id} stage=embedding "
+        f"event=job_started file={chunks_file}"
+    )
+    
+    try:
+        # Load chunks
+        chunks, file_metadata = load_chunks_file(chunks_file, trace_id)
+        
+        # Combine metadata if needed
+        if metadata and file_metadata:
+            combined_metadata = {**file_metadata, **metadata}
+        else:
+            combined_metadata = metadata or file_metadata or {}
+        
+        # Add embedding model information to metadata
+        combined_metadata["embedding_model"] = embedder.model_name
+        
+        # Embed chunks with enhanced metadata integration
+        embedded_chunks = embedder.embed_chunks(chunks, combined_metadata, trace_id)
+        
+        # Save to MongoDB (primary storage)
+        document_ids = save_to_mongodb(embedded_chunks, combined_metadata, trace_id)
+        
+        # For backward compatibility, also save to file system if needed
+        # Uncomment if you want to maintain file-based storage alongside MongoDB
+        # output_file = save_to_vector_store(embedded_chunks, combined_metadata)
+        
+        logger.info(
+            f"trace_id={trace_id} worker_id={worker_id} stage=embedding "
+            f"event=job_completed file={chunks_file} status=success "
+            f"chunk_count={len(embedded_chunks)}"
+        )
+        
+        return True
+        
+    except Exception as e:
+        logger.error(
+            f"trace_id={trace_id} worker_id={worker_id} stage=embedding "
+            f"event=job_failed file={chunks_file} error={str(e)}"
+        )
+        logger.exception("Detailed error information:")
+        
+        # Could push to DLQ here for retry logic
+        # redis_client.rpush(EMBEDDING_DLQ, json.dumps({**job_data, 'error': str(e)}))
+        
+        return False
+
+def process_embedding_queue():
+    """
+    Main worker loop - process embedding jobs from the queue using atomic BLPOP.
     """
     embedder = Embedder()
     
-    while True:
-        # Get the next item from the queue
-        item = redis_client.lindex(EMBEDDING_QUEUE, 0)
-        if item:
-            try:
-                data = json.loads(item)
-                chunks_file = data['chunks_file']
-                metadata = data['metadata']
+    logger.info(
+        f"worker_id={worker_id} stage=embedding event=worker_started "
+        f"queue={EMBEDDING_QUEUE}"
+    )
+    
+    while not shutdown_event.is_set():
+        try:
+            # Atomic blocking pop from embedding queue (5 second timeout)
+            result = redis_client.brpop(EMBEDDING_QUEUE, timeout=5)
+            
+            if result:
+                _, job_item = result
+                job_data = json.loads(job_item)
                 
-                logger.info(f"Processing embeddings for: {chunks_file}")
+                # Process the embedding job
+                process_embedding_job(embedder, job_data)
+            else:
+                # No item in queue, continue waiting
+                logger.debug(
+                    f"worker_id={worker_id} stage=embedding event=queue_empty "
+                    f"queue={EMBEDDING_QUEUE}"
+                )
                 
-                # Load chunks
-                chunks, file_metadata = load_chunks_file(chunks_file)
-                
-                # Combine metadata if needed
-                if metadata and file_metadata:
-                    combined_metadata = {**file_metadata, **metadata}
-                else:
-                    combined_metadata = metadata or file_metadata or {}
-                
-                # Add embedding model information to metadata
-                combined_metadata["embedding_model"] = embedder.model_name
-                
-                # Embed chunks with enhanced metadata integration
-                embedded_chunks = embedder.embed_chunks(chunks, combined_metadata)
-                
-                # Save to MongoDB (primary storage)
-                document_id = save_to_mongodb(embedded_chunks, combined_metadata)
-                
-                # For backward compatibility, also save to file system if needed
-                # Uncomment if you want to maintain file-based storage alongside MongoDB
-                # output_file = save_to_vector_store(embedded_chunks, combined_metadata)
-                
-                logger.info(f"Successfully embedded chunks from {chunks_file} with document_id {document_id}")
-                
-                # Remove the processed item from the queue
-                redis_client.lpop(EMBEDDING_QUEUE)
-                
-            except Exception as e:
-                logger.error(f"Error processing embeddings: {str(e)}")
-                logger.exception("Detailed error information:")
-                # Consider implementing a dead letter queue or retry mechanism
-                # Uncomment the following line to remove failing items from the queue
-                # redis_client.lpop(EMBEDDING_QUEUE)
-        else:
-            logger.debug("No items in embedding queue, waiting...")
-            time.sleep(5)  # Wait before checking again
+        except Exception as e:
+            logger.error(
+                f"worker_id={worker_id} stage=embedding event=worker_error "
+                f"error={str(e)}"
+            )
+            logger.exception("Detailed error information:")
+            time.sleep(5)  # Back off on error
+    
+    logger.info(
+        f"worker_id={worker_id} stage=embedding event=shutdown_complete"
+    )
 
 if __name__ == "__main__":
     # Parse command-line arguments
-    parser = argparse.ArgumentParser(description="Document embedding script")
+    parser = argparse.ArgumentParser(description="Document embedding worker")
+    parser.add_argument("--worker-id", type=str, required=True, help="Unique worker identifier")
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
     args = parser.parse_args()
-
+    
+    # Set worker ID
+    worker_id = args.worker_id
+    
     # Configure logging
     if args.debug:
         logging.basicConfig(level=logging.DEBUG)
@@ -328,5 +420,10 @@ if __name__ == "__main__":
     os.makedirs(PROCESSED_DIR, exist_ok=True)
     os.makedirs(SIMULATED_VECTOR_STORE, exist_ok=True)
     
-    logger.info("Starting embedding process...")
-    process_queue()
+    try:
+        logger.info(f"worker_id={worker_id} stage=embedding event=starting")
+        process_embedding_queue()
+    except KeyboardInterrupt:
+        logger.info(f"worker_id={worker_id} stage=embedding event=keyboard_interrupt")
+    finally:
+        logger.info(f"worker_id={worker_id} stage=embedding event=stopped")
