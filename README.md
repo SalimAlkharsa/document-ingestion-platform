@@ -211,23 +211,6 @@ EMBEDDING_MODEL=all-MiniLM-L6-v2  # Smaller model (384-dim)
 
 **Solution:** Ensure internet connection and disk space. Models are cached in `~/.cache/huggingface/`.
 
-## 🚀 Performance
-
-### Throughput
-
-On a typical system (4 CPU cores, 8GB RAM):
-
-- **Extraction**: ~2-5 pages/second
-- **Chunking**: ~10-20 documents/second
-- **Embedding**: ~30-50 chunks/second (all-mpnet-base-v2)
-
-### Optimization Tips
-
-1. **GPU Acceleration**: Use CUDA-enabled PyTorch for 5-10x faster embedding
-2. **Parallel Workers**: Run multiple chunking/embedding workers
-3. **Batch Processing**: Increase batch size for throughput
-4. **Model Selection**: Balance quality vs speed based on use case
-
 ## 📝 License
 
 MIT License - See [LICENSE](LICENSE) file for details.
