@@ -409,13 +409,6 @@ Contributions welcome! Please:
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
-## 📖 Additional Documentation
-
-- [QUICKSTART.md](QUICKSTART.md) - Detailed setup guide
-- [PROJECT_NOTES_FOR_RESUME.md](PROJECT_NOTES_FOR_RESUME.md) - Project overview and achievements
-- [config/worker_config.py](config/worker_config.py) - Worker configuration details
-- [benchmarks/RESULTS.md](benchmarks/RESULTS.md) - Benchmark results and analysis
-
 ## 🙏 Acknowledgments
 
 - **[Docling](https://github.com/DS4SD/docling)** - Enterprise-grade PDF extraction
